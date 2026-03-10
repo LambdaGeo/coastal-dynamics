@@ -91,8 +91,8 @@ def run(
 
     # ── visualization ─────────────────────────────────────────────────────────
     Map(gdf=gdf, plot_params={"column": attr_uso,  "cmap": USO_CMAP,  "norm": USO_NORM,  "legend": False})
-    Map(gdf=gdf, plot_params={"column": attr_alt,  "cmap": "terrain", "legend": True})
-    Map(gdf=gdf, plot_params={"column": attr_solo, "cmap": SOLO_CMAP, "norm": SOLO_NORM, "legend": False})
+    #Map(gdf=gdf, plot_params={"column": attr_alt,  "cmap": "terrain", "legend": True})
+    #Map(gdf=gdf, plot_params={"column": attr_solo, "cmap": SOLO_CMAP, "norm": SOLO_NORM, "legend": False})
 
     if show_chart:
         Chart(select={"flooded_cells", "mangrove_migrated"})

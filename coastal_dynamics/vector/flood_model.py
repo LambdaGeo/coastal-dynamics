@@ -38,6 +38,7 @@ import geopandas as gpd
 from libpysal.weights import Queen
 
 from dissmodel.geo.vector.model import SpatialModel
+from dissmodel.visualization import track_plot
 
 from coastal_dynamics.common.constants import (
     USOS_INUNDADOS,
@@ -45,7 +46,7 @@ from coastal_dynamics.common.constants import (
     MAR,
 )
 
-
+@track_plot("flooded_cells", "blue")
 class FloodVectorModel(SpatialModel):
     """
     Hydrological model implemented with DisSModel + GeoDataFrame.
@@ -66,6 +67,9 @@ class FloodVectorModel(SpatialModel):
     attr_alt      : elevation column. Default: "alt"
     """
 
+
+    
+
     def setup(
         self,
         taxa_elevacao: float = 0.011,
@@ -77,7 +81,7 @@ class FloodVectorModel(SpatialModel):
         self.attr_alt      = attr_alt
 
         # metrics exposed for @track_plot / Chart
-        self.celulas_inundadas = 0
+        self.flooded_cells = 0
         self.novas_inundadas   = 0
         self.nivel_mar_atual   = 0.0
 
@@ -140,6 +144,6 @@ class FloodVectorModel(SpatialModel):
         inund = uso_novo.isin(USOS_INUNDADOS) & (uso_novo != MAR)
         novas = uso_novo.isin(USOS_INUNDADOS) & ~uso_past.isin(USOS_INUNDADOS)
 
-        self.celulas_inundadas = int(inund.sum())
+        self.flooded_cells = int(inund.sum())
         self.novas_inundadas   = int(novas.sum())
         self.nivel_mar_atual   = round(nivel_mar, 4)

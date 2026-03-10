@@ -38,6 +38,7 @@ import geopandas as gpd
 from libpysal.weights import Queen
 
 from dissmodel.geo.vector.model import SpatialModel
+from dissmodel.visualization import track_plot
 
 from coastal_dynamics.common.constants import (
     MANGUE,
@@ -50,7 +51,7 @@ from coastal_dynamics.common.constants import (
     SOLO_CANAL_FLUVIAL,
 )
 
-
+@track_plot("mangrove_migrated", "green")
 class MangroveModel(SpatialModel):
     """
     Mangrove model implemented with DisSModel + GeoDataFrame.
