@@ -1,6 +1,3 @@
-
-# Coastal Dynamics Models using DisSModel
-
 # Coastal Dynamics Models using DisSModel
 
 This repository demonstrates how to build **spatial simulation models using the DisSModel framework**.
