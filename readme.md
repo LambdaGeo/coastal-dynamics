@@ -1,6 +1,6 @@
 # Coastal Dynamics Models using DisSModel
 
-This repository demonstrates how to build **spatial simulation models using the DisSModel framework**.
+This repository demonstrates how to build **spatial simulation models using the [DisSModel](https://github.com/lambdageo/dissmodel) framework**.
 
 The project implements a set of **coastal ecosystem processes**, including:
 
@@ -22,7 +22,6 @@ This dual implementation shows how DisSModel supports different spatial backends
 # Repository Structure
 
 ```
-
 coastal-dynamics
 │
 ├── coastal_dynamics
@@ -35,7 +34,7 @@ coastal-dynamics
 │   │
 │   └── vector
 │       ├── flood_model.py
-│       └── mangue_model.py
+│       └── mangrove_model.py
 │
 ├── data
 │   ├── synthetic_grid_60x60_shp.zip
@@ -45,16 +44,16 @@ coastal-dynamics
 │   ├── run_raster.py
 │   └── run_vector.py
 │
-└── requirements
-
-````
+├── requirements.txt
+└── pyproject.toml
+```
 
 ### Main Components
 
 **Models**
 
-- `flood_model.py` → Simulates flooding due to sea-level rise  
-- `mangrove_model.py` → Simulates mangrove migration and soil dynamics  
+- `flood_model.py` → Simulates flooding due to sea-level rise
+- `mangrove_model.py` → Simulates mangrove migration and soil dynamics
 
 **Spatial representations**
 
@@ -75,9 +74,7 @@ coastal-dynamics
 ```bash
 git clone https://github.com/lambdageo/coastal-dynamics.git
 cd coastal-dynamics
-````
-
----
+```
 
 ## 2. Create a Python virtual environment
 
@@ -85,45 +82,26 @@ cd coastal-dynamics
 python -m venv .venv
 ```
 
-Activate it.
+Activate it:
 
-### Linux / macOS
-
+**Linux / macOS**
 ```bash
 source .venv/bin/activate
 ```
 
-### Windows
-
+**Windows**
 ```bash
 .venv\Scripts\activate
 ```
 
----
-
-## 3. Install project dependencies
+## 3. Install dependencies
 
 ```bash
-pip install -r requirements
-```
-
----
-
-## 4. Install DisSModel
-
-Clone and install the DisSModel framework:
-
-```bash
-git clone https://github.com/lambdageo/dissmodel.git
-cd dissmodel
 pip install -e .
 ```
 
-Return to this repository:
-
-```bash
-cd ../coastal-dynamics
-```
+This installs the project and all dependencies, including
+[DisSModel 0.2.0](https://pypi.org/project/dissmodel/).
 
 ---
 
@@ -141,9 +119,9 @@ data/
 
 Contains **GeoTIFF layers** representing:
 
-* `uso` → land use
-* `alt` → elevation
-* `solo` → soil type
+- `uso` → land use
+- `alt` → elevation
+- `solo` → soil type
 
 ### Vector dataset
 
@@ -155,46 +133,33 @@ Both represent a **60×60 synthetic coastal grid** used for simulation experimen
 
 # Running the Simulations
 
-The example scripts expect the dataset path as a command-line argument.
-
-Since the project is not installed as a Python package, you must include the project root in `PYTHONPATH`.
-
----
-
-# Running the Raster Simulation
+## Raster simulation
 
 Raster simulations operate on **GeoTIFF grids**.
 
-Run:
-
 ```bash
-PYTHONPATH=. python examples/run_raster.py data/synthetic_grid_60x60_tiff.zip
+python examples/run_raster.py data/synthetic_grid_60x60_tiff.zip
 ```
 
 The script performs:
 
-1. Loading the raster dataset
-2. Building a raster backend using DisSModel
-3. Running the Flood and Mangrove models
-4. Updating raster arrays at each simulation step
+1. Loading the raster dataset into a `RasterBackend`
+2. Running `FloodRasterModel` and `MangroveModel` step by step
+3. Updating raster arrays at each simulation step
 
----
-
-# Running the Vector Simulation
+## Vector simulation
 
 Vector simulations operate on **polygon cells stored in a Shapefile**.
 
-Run:
-
 ```bash
-PYTHONPATH=. python examples/run_vector.py data/synthetic_grid_60x60_shp.zip
+python examples/run_vector.py data/synthetic_grid_60x60_shp.zip
 ```
 
 The script performs:
 
-1. Loading the Shapefile dataset
-2. Constructing the spatial topology
-3. Executing the ecological processes
+1. Loading the Shapefile dataset into a GeoDataFrame
+2. Constructing the spatial topology (Queen neighborhood)
+3. Running `FloodVectorModel` and `MangroveModel` step by step
 4. Updating polygon attributes during the simulation
 
 ---
@@ -207,11 +172,9 @@ The flooding model simulates **sea-level rise propagation** across the landscape
 
 Main processes:
 
-* Sea level increases over time
-* Flooded cells propagate water to neighboring cells
-* Terrain elevation dynamically adjusts due to water flux
-
----
+- Sea level increases over time at a configurable rate (default: 0.011 m/year — IPCC RCP8.5)
+- Flooded cells propagate water to neighboring cells
+- Terrain elevation dynamically adjusts due to water flux
 
 ## Mangrove Migration
 
@@ -219,24 +182,35 @@ The mangrove model simulates **ecosystem migration under rising sea levels**.
 
 Processes include:
 
-* Inland mangrove migration
-* Soil type transitions
-* Tidal influence threshold
-* Optional **sediment accretion process** based on Alongi (2008)
+- Inland mangrove migration
+- Soil type transitions
+- Tidal influence threshold
+- Optional sediment accretion based on Alongi (2008)
 
 ---
 
 # Simulation Metrics
 
-During execution the models track several indicators:
+During execution the models track:
 
-* flooded cells
-* newly flooded cells
-* mangrove migration
-* soil migration
-* current sea level
+- `celulas_inundadas` — total flooded cells
+- `novas_inundadas` — newly flooded cells per step
+- `nivel_mar_atual` — current sea level (m)
+- `mangue_migrado` — total migrated mangrove cells
+- `solo_migrado` — total migrated soil cells
 
-These metrics can be used for **analysis, benchmarking, and visualization**.
+---
+
+# DisSModel version
+
+This project requires **DisSModel 0.2.0**, which introduced:
+
+- `RasterBackend` and `RasterModel` — NumPy-based execution engine
+- `RasterCellularAutomaton` — vectorized CA base class
+- `SpatialModel` — base class for vector push/source models
+- `RasterMap` — raster visualization with categorical and continuous modes
+
+See the [DisSModel changelog](https://github.com/lambdageo/dissmodel/releases) for details.
 
 ---
 
@@ -246,10 +220,10 @@ Coastal ecosystems such as mangroves are highly sensitive to **sea-level rise an
 
 This project explores how different **spatial representations** influence:
 
-* diffusion processes
-* ecological transitions
-* computational performance
-* scalability of spatial models
+- diffusion processes
+- ecological transitions
+- computational performance
+- scalability of spatial models
 
 By implementing the same processes using **raster and vector spatial backends**, this repository supports comparative experiments in spatial simulation modeling.
 
@@ -257,15 +231,28 @@ By implementing the same processes using **raster and vector spatial backends**,
 
 # Requirements
 
-Typical dependencies include:
+- Python 3.11+
+- dissmodel >= 0.2.0
+- numpy
+- geopandas
+- rasterio
+- shapely
 
-* Python 3.11+
-* numpy
-* geopandas
-* rasterio
-* shapely
+See `requirements.txt` for the pinned versions.
 
-See the `requirements` file for the full list.
+---
+
+# Citation
+
+If you use this project in your research, please cite:
+
+```
+Bezerra, R. (2014). Modelagem da migração de manguezais sob efeito da
+elevação do nível do mar. INPE.
+
+Costa, S. S. et al. DisSModel — A Python framework for spatial discrete
+simulation models. LambdaGEO, UFMA.
+```
 
 ---
 
@@ -284,7 +271,3 @@ Lead Researcher – LambdaGEO
 
 GitHub: [https://github.com/profsergiocosta](https://github.com/profsergiocosta)
 Research Group: [https://lambdageo.github.io](https://lambdageo.github.io)
-
-
-
----
