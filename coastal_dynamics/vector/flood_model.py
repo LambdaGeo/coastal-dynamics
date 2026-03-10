@@ -1,26 +1,30 @@
 """
-brmangue/flood_vector_model.py — Modelo Hidro (versão GeoDataFrame)
-====================================================================
-Versão do FloodRasterModel usando GeoDataFrame + SpatialModel,
-para comparação direta com a versão NumPy (flood_raster_model.py).
+flood_vector_model.py — Hydrological Model (GeoDataFrame version)
+=================================================================
 
-Mesma lógica, diferente substrato:
+Vector-based version of FloodRasterModel using GeoDataFrame + SpatialModel,
+designed for direct comparison with the NumPy implementation
+(flood_raster_model.py).
 
-    flood_raster_model.py     RasterBackend (NumPy, vetorizado)
-    flood_vector_model.py  ←  GeoDataFrame  (libpysal, célula a célula)
+Same logic, different substrate:
 
-Por que NÃO usar CellularAutomaton
------------------------------------
-CellularAutomaton.rule(idx) calcula o novo estado de uma célula com base
-em si mesma e nos seus vizinhos (modelo pull). O Hidro é orientado a
-FONTE: células inundadas propagam fluxo e inundação para vizinhos —
-a lógica é inversa (modelo push). Por isso herdamos SpatialModel
-diretamente e implementamos execute() livremente.
+    flood_raster_model.py     RasterBackend (NumPy, vectorized)
+    flood_vector_model.py  ←  GeoDataFrame  (libpysal, cell-by-cell)
 
-Uso
----
+Why NOT use CellularAutomaton
+------------------------------
+CellularAutomaton.rule(idx) computes the new state of a cell based
+on itself and its neighbors (pull model). The hydrological process
+is source-oriented: flooded cells propagate flow and flooding to
+their neighbors — the logic is the opposite (push model).
+
+For this reason we inherit directly from SpatialModel and implement
+execute() freely.
+
+Usage
+-----
     from dissmodel.core import Environment
-    from brmangue.flood_vector_model import FloodVectorModel
+    from coastal_dynamics.vector.flood_vector_model import FloodVectorModel
     import geopandas as gpd
 
     gdf = gpd.read_file("flood_model.shp")
@@ -44,22 +48,22 @@ from coastal_dynamics.common.constants import (
 
 class FloodVectorModel(SpatialModel):
     """
-    Hidro (hidro.lua) → DisSModel + GeoDataFrame.
+    Hydrological model implemented with DisSModel + GeoDataFrame.
 
-    Equivalência com a versão Raster
-    ---------------------------------
+    Equivalence with the raster version
+    -----------------------------------
     RasterBackend.shift2d()          →  neighs_id(idx) / neighbor_values()
     np.isin(uso, USOS_INUNDADOS)     →  uso_past.isin(USOS_INUNDADOS)
-    loop sobre DIRS_MOORE            →  loop sobre vizinhos reais do GDF
-    vetorizado sobre grade inteira   →  loop célula a célula (mais lento,
-                                        mas fiel à geometria real)
+    loop over DIRS_MOORE             →  loop over real GDF neighbors
+    vectorized over full grid        →  cell-by-cell loop (slower,
+                                        but faithful to real geometry)
 
-    Parâmetros
+    Parameters
     ----------
-    gdf           : GeoDataFrame com colunas attr_uso e attr_alt
-    taxa_elevacao : m/ano — IPCC RCP8.5 = 0.011
-    attr_uso      : coluna de uso do solo. Padrão: "uso"
-    attr_alt      : coluna de altitude.   Padrão: "alt"
+    gdf           : GeoDataFrame with columns attr_uso and attr_alt
+    taxa_elevacao : meters/year — IPCC RCP8.5 ≈ 0.011
+    attr_uso      : land-use column. Default: "uso"
+    attr_alt      : elevation column. Default: "alt"
     """
 
     def setup(
@@ -72,31 +76,31 @@ class FloodVectorModel(SpatialModel):
         self.attr_uso      = attr_uso
         self.attr_alt      = attr_alt
 
-        # métricas expostas para @track_plot / Chart
+        # metrics exposed for @track_plot / Chart
         self.celulas_inundadas = 0
         self.novas_inundadas   = 0
         self.nivel_mar_atual   = 0.0
 
-        # Queen = vizinhança Moore (8 direções) para grade regular
-        # silence_warnings suprime aviso de ilhas (células sem vizinhos)
+        # Queen = Moore neighborhood (8 directions) for regular grids
+        # silence_warnings suppresses island warnings (cells without neighbors)
         self.create_neighborhood(strategy=Queen, silence_warnings=True)
 
     def execute(self) -> None:
         nivel_mar = self.env.now() * self.taxa_elevacao
 
-        # Snapshots — equivale a celula.past[] do TerraME
+        # Snapshots — equivalent to cell.past[] in TerraME
         uso_past = self.gdf[self.attr_uso].copy()
         alt_past = self.gdf[self.attr_alt].copy()
 
-        # ── fontes: ehMarOuInundado(uso) and alt >= 0 ─────────────────────────
+        # ── sources: isSeaOrFlooded(uso) and alt >= 0 ─────────────────────────
         fontes = set(
             uso_past.index[
                 uso_past.isin(USOS_INUNDADOS) & (alt_past >= 0)
             ]
         )
 
-        # ── A. Altimetria — difusão de fluxo (condição relativa) ──────────────
-        # Lua: if vizinho.past[alt] <= altAtual: viz[alt] += fluxo
+        # ── A. Elevation — flow diffusion (relative condition) ────────────────
+        # Lua: if neighbor.past[alt] <= currentAlt: neigh[alt] += flow
         alt_nova = alt_past.copy()
 
         for idx in fontes:
@@ -115,10 +119,10 @@ class FloodVectorModel(SpatialModel):
 
         self.gdf[self.attr_alt] = alt_nova
 
-        # ── B. Inundação — cota absoluta (BR-MANGUE, Bezerra 2014) ───────────
-        # Lua: if vizinho.past[alt] <= nivelMar and not ehMarOuInundado(viz):
-        #          aplicarInundacao(vizinho)
-        # Usa alt_past — fiel ao .past do TerraME
+        # ── B. Flooding — absolute elevation threshold ───────────────────────
+        # Lua: if neighbor.past[alt] <= seaLevel and not isSeaOrFlooded(neigh):
+        #          applyFlooding(neighbor)
+        # Uses alt_past — faithful to TerraME .past semantics
         uso_novo = uso_past.copy()
 
         for idx in self.gdf.index:
@@ -132,9 +136,10 @@ class FloodVectorModel(SpatialModel):
 
         self.gdf[self.attr_uso] = uso_novo
 
-        # ── métricas ──────────────────────────────────────────────────────────
+        # ── metrics ──────────────────────────────────────────────────────────
         inund = uso_novo.isin(USOS_INUNDADOS) & (uso_novo != MAR)
         novas = uso_novo.isin(USOS_INUNDADOS) & ~uso_past.isin(USOS_INUNDADOS)
+
         self.celulas_inundadas = int(inund.sum())
         self.novas_inundadas   = int(novas.sum())
         self.nivel_mar_atual   = round(nivel_mar, 4)
