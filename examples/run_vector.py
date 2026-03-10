@@ -29,7 +29,7 @@ from coastal_dynamics.common.constants import (
     SOLO_COLORS, SOLO_LABELS,
 )
 from coastal_dynamics.vector.flood_model import FloodVectorModel
-from coastal_dynamics.vector.mangue_model import MangroveModel
+from coastal_dynamics.vector.mangrove_model import MangroveModel
 
 
 # ── simulation configuration ──────────────────────────────────────────────────
