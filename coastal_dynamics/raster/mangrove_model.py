@@ -6,7 +6,7 @@ Faithful translation of mangue.lua to DisSModel + RasterBackend.
 from __future__ import annotations
 
 import numpy as np
-from dissmodel.geo.raster.model import RasterModel
+from dissmodel.geo import RasterModel
 from dissmodel.geo.raster.backend import RasterBackend
 
 from coastal_dynamics.common.constants import (
