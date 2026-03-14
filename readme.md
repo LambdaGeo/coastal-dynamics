@@ -66,6 +66,8 @@ coastal-dynamics
 - `run_raster.py` → executes the raster simulation
 - `run_vector.py` → executes the vector simulation
 
+- PYTHONPATH=. python examples/run_raster.py  data/elevacao_pol/elevacao_pol.shp   --resolution 30   --crs EPSG:5880   --bands uso alt solo   --format vector
+
 ---
 
 # Installation
