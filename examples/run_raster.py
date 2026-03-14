@@ -56,7 +56,8 @@ from coastal_dynamics.raster.mangrove_model import MangroveModel
 
 # ── simulation configuration ──────────────────────────────────────────────────
 
-SEA_LEVEL_RISE_RATE = 0.011   # m/year — IPCC RCP8.5
+#SEA_LEVEL_RISE_RATE = 0.011   # m/year — IPCC RCP8.5
+SEA_LEVEL_RISE_RATE = 0.5   # m/year — IPCC RCP8.5
 TIDE_HEIGHT         = 6.0     # base tide level in meters
 END_TIME            = 88      # steps (2012–2100)
 

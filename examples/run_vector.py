@@ -34,7 +34,8 @@ from coastal_dynamics.vector.mangrove_model import MangroveModel
 
 # ── simulation configuration ──────────────────────────────────────────────────
 
-SEA_LEVEL_RISE_RATE = 0.011
+#SEA_LEVEL_RISE_RATE = 0.011
+SEA_LEVEL_RISE_RATE = 0.5   # m/year — IPCC RCP8.5
 TIDE_HEIGHT         = 6.0
 END_TIME            = 88
 
