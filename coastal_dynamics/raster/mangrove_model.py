@@ -81,7 +81,7 @@ class MangroveModel(RasterModel):
         # mask: True = valid cell — falls back to all-True for GeoTIFF input
         mask = self.backend.arrays.get(
             "mask", np.ones((rows, cols), dtype=bool)
-        )
+        ).astype(bool)
 
         uso_past  = self.backend.get("uso").copy()
         alt_past  = self.backend.get("alt").copy()

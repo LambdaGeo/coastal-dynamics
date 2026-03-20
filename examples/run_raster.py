@@ -47,8 +47,7 @@ from coastal_dynamics.common.constants import (
 
 from dissmodel.geo.raster.io import load_geotiff, save_geotiff, shapefile_to_raster_backend
 
-# ── provisional import — move to dissmodel.geo.raster.io when stable ──────────
-from coastal_dynamics.common.raster_io import shapefile_to_raster_backend
+
 
 from coastal_dynamics.raster.flood_model import FloodModel
 from coastal_dynamics.raster.mangrove_model import MangroveModel
