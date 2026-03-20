@@ -4,7 +4,7 @@ run_vector.py — Vector simulation entry point (GeoDataFrame)
 
 Vector-based version for comparison with run.py (RasterBackend).
 
-Uses FloodVectorModel + MangroveModel + GeoDataFrame + Map/Chart.
+Uses FloodModel + MangroveModel + GeoDataFrame + Map/Chart.
 
 Usage
 -----
@@ -28,7 +28,7 @@ from coastal_dynamics.common.constants import (
     USO_COLORS, USO_LABELS,
     SOLO_COLORS, SOLO_LABELS,
 )
-from coastal_dynamics.vector.flood_model import FloodVectorModel
+from coastal_dynamics.vector.flood_model import FloodModel
 from coastal_dynamics.vector.mangrove_model import MangroveModel
 
 
@@ -73,7 +73,7 @@ def run(
 
     # ── models — share the same GeoDataFrame ──────────────────────────────────
     # Instantiation order defines execution order per step
-    FloodVectorModel(
+    FloodModel(
         gdf           = gdf,
         taxa_elevacao = taxa_elevacao,
         attr_uso      = attr_uso,

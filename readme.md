@@ -1,292 +1,167 @@
-# Coastal Dynamics Models using DisSModel
+# Coastal Dynamics — DisSModel Example
 
-This repository demonstrates how to build **spatial simulation models using the DisSModel framework**.
+This repository demonstrates how to build **spatial simulation models using the [DisSModel](https://github.com/lambdageo/dissmodel) framework**.
 
-The project implements a set of **coastal ecosystem processes**, including:
+The project implements a set of **coastal ecosystem processes**:
 
-- sea-level rise
-- flooding dynamics
-- mangrove migration
+- Sea-level rise and flooding dynamics
+- Mangrove migration and soil transitions
 
-These processes are implemented as **example models** to illustrate how DisSModel can be used to design and execute **spatially explicit simulations**.
+The same processes are implemented on **two spatial substrates** to illustrate DisSModel's dual-backend architecture:
 
-To highlight the flexibility of the framework, the same ecological processes are implemented using two spatial representations:
-
-- **Raster models** based on GeoTIFF grids
-- **Vector models** based on Shapefile polygons
-
-This dual implementation shows how DisSModel supports different spatial backends while maintaining the same model logic, enabling experiments comparing **spatial modeling strategies, performance, and simulation behavior**.
+| Substrate | Representation | Entry point |
+|-----------|---------------|-------------|
+| **Raster** | GeoTIFF / Shapefile → `RasterBackend` | `examples/run_raster.py` |
+| **Vector** | Shapefile → `GeoDataFrame` | `examples/run_vector.py` |
 
 ---
 
-# Repository Structure
+## Repository Structure
 
 ```
-
-coastal-dynamics
-│
-├── coastal_dynamics
-│   ├── common
-│   │   └── constants.py
-│   │
-│   ├── raster
-│   │   ├── flood_model.py
-│   │   └── mangrove_model.py
-│   │
-│   └── vector
-│       ├── flood_model.py
-│       └── mangue_model.py
-│
-├── data
+coastal-dynamics/
+├── coastal_dynamics/
+│   ├── common/
+│   │   └── constants.py       land-use codes, colours, band specs
+│   ├── raster/
+│   │   ├── flood_model.py     FloodModel (NumPy vectorized)
+│   │   └── mangrove_model.py  MangroveModel (NumPy vectorized)
+│   └── vector/
+│       ├── flood_model.py     FloodModel (GeoDataFrame)
+│       └── mangue_model.py    MangroveModel (GeoDataFrame)
+├── data/
+│   ├── elevacao_pol/          real Maranhão coast dataset
 │   ├── synthetic_grid_60x60_shp.zip
 │   └── synthetic_grid_60x60_tiff.zip
-│
-├── examples
+├── examples/
 │   ├── run_raster.py
 │   └── run_vector.py
-│
-└── requirements
-
-````
-
-### Main Components
-
-**Models**
-
-- `flood_model.py` → Simulates flooding due to sea-level rise  
-- `mangrove_model.py` → Simulates mangrove migration and soil dynamics  
-
-**Spatial representations**
-
-- `raster/` → grid-based spatial modeling using GeoTIFF
-- `vector/` → polygon-based spatial modeling using Shapefiles
-
-**Examples**
-
-- `run_raster.py` → executes the raster simulation
-- `run_vector.py` → executes the vector simulation
-
-- PYTHONPATH=. python examples/run_raster.py  data/elevacao_pol/elevacao_pol.shp   --resolution 30   --crs EPSG:5880   --bands uso alt solo   --format vector
+└── pyproject.toml
+```
 
 ---
 
-# Installation
+## Installation
 
-## 1. Clone the repository
+### 1. Clone the repository
 
 ```bash
 git clone https://github.com/lambdageo/coastal-dynamics.git
 cd coastal-dynamics
-````
+```
 
----
-
-## 2. Create a Python virtual environment
+### 2. Create and activate a virtual environment
 
 ```bash
 python -m venv .venv
+source .venv/bin/activate      # Linux / macOS
+# .venv\Scripts\activate       # Windows
 ```
 
-Activate it.
-
-### Linux / macOS
+### 3. Install in editable mode
 
 ```bash
-source .venv/bin/activate
-```
-
-### Windows
-
-```bash
-.venv\Scripts\activate
-```
-
----
-
-## 3. Install project dependencies
-
-```bash
-pip install -r requirements
-```
-
----
-
-## 4. Install DisSModel
-
-Clone and install the DisSModel framework:
-
-```bash
-git clone https://github.com/lambdageo/dissmodel.git
-cd dissmodel
 pip install -e .
 ```
 
-Return to this repository:
+This installs `coastal_dynamics` as a package — no `PYTHONPATH` tricks needed.
+
+---
+
+## Running the Simulations
+
+### Raster — from GeoTIFF (plain or zipped)
 
 ```bash
-cd ../coastal-dynamics
+python examples/run_raster.py data/synthetic_grid_60x60_tiff.zip
 ```
 
----
-
-# Example Datasets
-
-The repository includes **synthetic datasets** for testing.
-
-```
-data/
-   synthetic_grid_60x60_tiff.zip
-   synthetic_grid_60x60_shp.zip
-```
-
-### Raster dataset
-
-Contains **GeoTIFF layers** representing:
-
-* `uso` → land use
-* `alt` → elevation
-* `solo` → soil type
-
-### Vector dataset
-
-Contains a **Shapefile grid** with the same attributes stored as polygon fields.
-
-Both represent a **60×60 synthetic coastal grid** used for simulation experiments.
-
----
-
-# Running the Simulations
-
-The example scripts expect the dataset path as a command-line argument.
-
-Since the project is not installed as a Python package, you must include the project root in `PYTHONPATH`.
-
----
-
-# Running the Raster Simulation
-
-Raster simulations operate on **GeoTIFF grids**.
-
-Run:
+### Raster — from Shapefile (rasterized on the fly)
 
 ```bash
-PYTHONPATH=. python examples/run_raster.py data/synthetic_grid_60x60_tiff.zip
+python examples/run_raster.py data/elevacao_pol.zip \
+    --resolution 30 \
+    --crs EPSG:5880 \
+    --bands uso alt solo \
+    --format vector
 ```
 
-The script performs:
-
-1. Loading the raster dataset
-2. Building a raster backend using DisSModel
-3. Running the Flood and Mangrove models
-4. Updating raster arrays at each simulation step
-
----
-
-# Running the Vector Simulation
-
-Vector simulations operate on **polygon cells stored in a Shapefile**.
-
-Run:
+### Vector
 
 ```bash
-PYTHONPATH=. python examples/run_vector.py data/synthetic_grid_60x60_shp.zip
+python examples/run_vector.py data/synthetic_grid_60x60_shp.zip
 ```
 
-The script performs:
+### Common options
 
-1. Loading the Shapefile dataset
-2. Constructing the spatial topology
-3. Executing the ecological processes
-4. Updating polygon attributes during the simulation
-
----
-
-# Model Processes
-
-## Flood Dynamics
-
-The flooding model simulates **sea-level rise propagation** across the landscape.
-
-Main processes:
-
-* Sea level increases over time
-* Flooded cells propagate water to neighboring cells
-* Terrain elevation dynamically adjusts due to water flux
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--bands` | Bands to visualize: `uso solo alt` | `uso` |
+| `--resolution` | Cell size in CRS units (shapefile input only) | `100` |
+| `--crs` | Target CRS, e.g. `EPSG:5880` | native |
+| `--format` | Force `tiff` or `vector` (auto-detected from extension) | auto |
+| `--acrecao` | Enable sediment accretion (Alongi 2008) | off |
+| `--no-save` | Skip saving the output GeoTIFF | — |
 
 ---
 
-## Mangrove Migration
+## Example Datasets
 
-The mangrove model simulates **ecosystem migration under rising sea levels**.
-
-Processes include:
-
-* Inland mangrove migration
-* Soil type transitions
-* Tidal influence threshold
-* Optional **sediment accretion process** based on Alongi (2008)
+| File | Type | Description |
+|------|------|-------------|
+| `synthetic_grid_60x60_tiff.zip` | GeoTIFF | 60×60 synthetic coastal grid |
+| `synthetic_grid_60x60_shp.zip` | Shapefile | Same grid as polygons |
+| `elevacao_pol.zip` | Shapefile | Real Maranhão coast (~50k cells, 30m resolution) |
 
 ---
 
-# Simulation Metrics
+## Model Processes
 
-During execution the models track several indicators:
+### Flood Dynamics
 
-* flooded cells
-* newly flooded cells
-* mangrove migration
-* soil migration
-* current sea level
+Simulates sea-level rise propagation across the landscape. At each step:
 
-These metrics can be used for **analysis, benchmarking, and visualization**.
+- Sea level increases by `taxa_elevacao` m/year (default: 0.011 m — IPCC RCP8.5)
+- Flooded cells propagate water to lower-elevation neighbours
+- Terrain elevation adjusts due to water flux
 
----
+### Mangrove Migration
 
-# Scientific Motivation
+Simulates ecosystem response to rising sea levels:
 
-Coastal ecosystems such as mangroves are highly sensitive to **sea-level rise and hydrological dynamics**.
-
-This project explores how different **spatial representations** influence:
-
-* diffusion processes
-* ecological transitions
-* computational performance
-* scalability of spatial models
-
-By implementing the same processes using **raster and vector spatial backends**, this repository supports comparative experiments in spatial simulation modeling.
+- Mangrove cells migrate inland following soil type transitions
+- Tidal influence threshold (`altura_mare`) controls migration range
+- Optional sediment accretion process based on Alongi (2008)
 
 ---
 
-# Requirements
+## Performance
 
-Typical dependencies include:
+Both substrates produce equivalent results. Performance differs significantly:
 
-* Python 3.11+
-* numpy
-* geopandas
-* rasterio
-* shapely
-
-See the `requirements` file for the full list.
+| Substrate | ~50k cells | Notes |
+|-----------|-----------|-------|
+| Raster | ~8 ms/step | NumPy vectorized |
+| Vector | ~2 min/step | GeoDataFrame per-cell |
 
 ---
 
-# License
+## Requirements
 
-This repository is part of the **LambdaGEO research initiative**.
+- Python 3.11+
+- dissmodel >= 0.3.0
+- numpy, geopandas, rasterio
 
----
-
-# Authors
-
-**Sergio Souza Costa, PhD**
-Associate Professor – Computer Engineering
-Federal University of Maranhão (UFMA)
-Lead Researcher – LambdaGEO
-
-GitHub: [https://github.com/profsergiocosta](https://github.com/profsergiocosta)
-Research Group: [https://lambdageo.github.io](https://lambdageo.github.io)
-
-
+See `pyproject.toml` for the full dependency list.
 
 ---
+
+## License
+
+MIT — [LambdaGEO Research Group](https://lambdageo.github.io), UFMA
+
+## Authors
+
+**Sergio Souza Costa, PhD**  
+Associate Professor — Federal University of Maranhão (UFMA)  
+[github.com/profsergiocosta](https://github.com/profsergiocosta) · [lambdageo.github.io](https://lambdageo.github.io)
