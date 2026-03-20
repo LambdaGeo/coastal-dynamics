@@ -224,7 +224,7 @@ def run(
     for band in bands:
         if band not in BAND_CONFIG:
             print(f"  warning: band '{band}' has no visual config — using viridis")
-        RasterMap(backend=backend, band=band, save_frames=True, **BAND_CONFIG.get(band, {}))
+        RasterMap(backend=backend, band=band, save_frames=False, **BAND_CONFIG.get(band, {}))
 
     # ── run ───────────────────────────────────────────────────────────────────
     print(f"Running steps {start} → {END_TIME}...")
