@@ -88,7 +88,6 @@ def run_vector(gdf: gpd.GeoDataFrame, n_steps: int = N_STEPS) -> tuple[gpd.GeoDa
     VectorFlood(
         gdf=gdf,
         taxa_elevacao=SEA_LEVEL_RISE_RATE,
-        aim_base=TIDE_HEIGHT,
     )
     VectorMangue(
         gdf=gdf,
@@ -137,7 +136,8 @@ def scatter_plot(ax, x, y, xlabel, ylabel, title, m):
 
 # ── report ────────────────────────────────────────────────────────────────────
 
-def write_report(results: dict, path: pathlib.Path) -> None:
+def write_report(results: dict, path: pathlib.Path,
+                 n_steps: int = N_STEPS, tolerance: float = TOLERANCE) -> None:
     lines = [
         "# Coastal Dynamics — Vector vs Raster Validation\n\n",
         f"Steps: {n_steps} | Tolerance: {tolerance}\n\n",
@@ -181,7 +181,7 @@ def main():
     print(f"  {len(gdf_orig):,} cells  crs={gdf_orig.crs}")
 
     print(f"\n[1/2] Vector substrate ({N_STEPS} steps)...")
-    gdf_result, vec_ms = run_vector(gdf_orig)
+    gdf_result, vec_ms = run_vector(gdf_orig, n_steps)
     print(f"  {vec_ms:.1f} ms/step")
 
     print(f"\n[2/2] Raster substrate ({N_STEPS} steps)...")
@@ -231,7 +231,8 @@ def main():
         "vec_ms": vec_ms,
         "ras_ms": ras_ms,
         "metrics": band_metrics,
-    }, pathlib.Path("coastal_validation_report.md"))
+    }, pathlib.Path("coastal_validation_report.md"),
+    n_steps=n_steps, tolerance=tolerance)
 
     print("\n" + "=" * 60)
     print("SUMMARY")
