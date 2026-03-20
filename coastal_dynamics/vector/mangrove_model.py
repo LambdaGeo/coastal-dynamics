@@ -37,7 +37,7 @@ from __future__ import annotations
 import geopandas as gpd
 from libpysal.weights import Queen
 
-from dissmodel.geo.vector.model import SpatialModel
+from dissmodel.geo import SpatialModel
 from dissmodel.visualization import track_plot
 
 from coastal_dynamics.common.constants import (

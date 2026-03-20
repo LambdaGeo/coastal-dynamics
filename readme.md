@@ -1,25 +1,22 @@
-# Coastal Dynamics Models using DisSModel
+# Coastal Dynamics — DisSModel Example
 
 This repository demonstrates how to build **spatial simulation models using the [DisSModel](https://github.com/lambdageo/dissmodel) framework**.
 
-The project implements a set of **coastal ecosystem processes**, including:
+The project implements a set of **coastal ecosystem processes**:
 
-- sea-level rise
-- flooding dynamics
-- mangrove migration
+- Sea-level rise and flooding dynamics
+- Mangrove migration and soil transitions
 
-These processes are implemented as **example models** to illustrate how DisSModel can be used to design and execute **spatially explicit simulations**.
+The same processes are implemented on **two spatial substrates** to illustrate DisSModel's dual-backend architecture:
 
-To highlight the flexibility of the framework, the same ecological processes are implemented using two spatial representations:
-
-- **Raster models** based on GeoTIFF grids
-- **Vector models** based on Shapefile polygons
-
-This dual implementation shows how DisSModel supports different spatial backends while maintaining the same model logic, enabling experiments comparing **spatial modeling strategies, performance, and simulation behavior**.
+| Substrate | Representation | Entry point |
+|-----------|---------------|-------------|
+| **Raster** | GeoTIFF / Shapefile → `RasterBackend` | `examples/run_raster.py` |
+| **Vector** | Shapefile → `GeoDataFrame` | `examples/run_vector.py` |
 
 ---
 
-# Repository Structure
+## Repository Structure
 
 ```
 coastal-dynamics
@@ -39,8 +36,7 @@ coastal-dynamics
 ├── data
 │   ├── synthetic_grid_60x60_shp.zip
 │   └── synthetic_grid_60x60_tiff.zip
-│
-├── examples
+├── examples/
 │   ├── run_raster.py
 │   └── run_vector.py
 │
@@ -67,9 +63,9 @@ coastal-dynamics
 
 ---
 
-# Installation
+## Installation
 
-## 1. Clone the repository
+### 1. Clone the repository
 
 ```bash
 git clone https://github.com/lambdageo/coastal-dynamics.git
@@ -105,10 +101,12 @@ This installs the project and all dependencies, including
 
 ---
 
-# Example Datasets
+## Running the Simulations
 
-The repository includes **synthetic datasets** for testing.
+### Raster — from GeoTIFF (plain or zipped)
 
+```bash
+python examples/run_raster.py data/synthetic_grid_60x60_tiff.zip
 ```
 data/
    synthetic_grid_60x60_tiff.zip
@@ -155,7 +153,7 @@ Vector simulations operate on **polygon cells stored in a Shapefile**.
 python examples/run_vector.py data/synthetic_grid_60x60_shp.zip
 ```
 
-The script performs:
+### Common options
 
 1. Loading the Shapefile dataset into a GeoDataFrame
 2. Constructing the spatial topology (Queen neighborhood)
@@ -164,7 +162,7 @@ The script performs:
 
 ---
 
-# Model Processes
+## Example Datasets
 
 ## Flood Dynamics
 
@@ -176,20 +174,20 @@ Main processes:
 - Flooded cells propagate water to neighboring cells
 - Terrain elevation dynamically adjusts due to water flux
 
-## Mangrove Migration
+## Model Processes
 
-The mangrove model simulates **ecosystem migration under rising sea levels**.
+### Flood Dynamics
 
-Processes include:
+Simulates sea-level rise propagation across the landscape. At each step:
 
 - Inland mangrove migration
 - Soil type transitions
 - Tidal influence threshold
 - Optional sediment accretion based on Alongi (2008)
 
----
+### Mangrove Migration
 
-# Simulation Metrics
+Simulates ecosystem response to rising sea levels:
 
 During execution the models track:
 
@@ -214,22 +212,31 @@ See the [DisSModel changelog](https://github.com/lambdageo/dissmodel/releases) f
 
 ---
 
-# Scientific Motivation
+## Validation
 
-Coastal ecosystems such as mangroves are highly sensitive to **sea-level rise and hydrological dynamics**.
+The raster and vector substrates are validated for equivalence using
+`examples/validate_coastal.py`. Results on the Maranhão coast dataset
+(50,496 cells, 5 steps):
 
-This project explores how different **spatial representations** influence:
+| Band | Match % | MAE | Notes |
+|------|---------|-----|-------|
+| `uso` (land use) | **100.00%** | 0.000000 | exact |
+| `solo` (soil) | **100.00%** | 0.000000 | exact |
+| `alt` (elevation) | **100.00%** | 0.000037 | floating-point accumulation only |
 
 - diffusion processes
 - ecological transitions
 - computational performance
 - scalability of spatial models
 
-By implementing the same processes using **raster and vector spatial backends**, this repository supports comparative experiments in spatial simulation modeling.
+```bash
+python examples/validate_coastal.py data/elevacao_pol.zip \
+    --resolution 30 --crs EPSG:5880 --steps 5
+```
 
 ---
 
-# Requirements
+## Performance
 
 - Python 3.11+
 - dissmodel >= 0.2.0
@@ -256,18 +263,15 @@ simulation models. LambdaGEO, UFMA.
 
 ---
 
-# License
+## Requirements
 
-This repository is part of the **LambdaGEO research initiative**.
+- Python 3.11+
+- dissmodel >= 0.3.0
+- numpy, geopandas, rasterio
+
+See `pyproject.toml` for the full dependency list.
 
 ---
-
-# Authors
-
-**Sergio Souza Costa, PhD**
-Associate Professor – Computer Engineering
-Federal University of Maranhão (UFMA)
-Lead Researcher – LambdaGEO
 
 GitHub: [https://github.com/profsergiocosta](https://github.com/profsergiocosta)
 Research Group: [https://lambdageo.github.io](https://lambdageo.github.io)

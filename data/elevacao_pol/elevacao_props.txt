@@ -1,0 +1,24 @@
+Plano de Informação: Cell
+Identificador do Plano: 5
+
+Coordenada Inicial(X): 1077690.000
+Coordenada Inicial(Y): -288900.000
+Coordenada Final(X): 1088160.000
+Coordenada Final(Y): -279210.000
+
+Projeção: Polyconic
+Identificador da Projeção: 9
+Datum: SIRGAS2000
+Unidade: Meters
+Longitude de Origem: -5.400000e+001
+Latitude de Origem: 0.000000e+000
+Offset X: 0.000000e+000
+Offset Y: 0.000000e+000
+Paralelo Padrão 1: 0.000000e+000
+Paralelo Padrão 2: 0.000000e+000
+Escala: 1.000000e+000
+Hemisfério: Sul
+
+Número de células:50496
+Resolução horizontal das células:30
+Resolução vertical das células:30

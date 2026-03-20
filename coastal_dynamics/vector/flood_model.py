@@ -24,12 +24,12 @@ execute() freely.
 Usage
 -----
     from dissmodel.core import Environment
-    from coastal_dynamics.vector.flood_vector_model import FloodVectorModel
+    from coastal_dynamics.vector.flood_vector_model import FloodModel
     import geopandas as gpd
 
     gdf = gpd.read_file("flood_model.shp")
     env = Environment(start_time=1, end_time=88)
-    FloodVectorModel(gdf=gdf, taxa_elevacao=0.011)
+    FloodModel(gdf=gdf, taxa_elevacao=0.011)
     env.run()
 """
 from __future__ import annotations
@@ -37,7 +37,7 @@ from __future__ import annotations
 import geopandas as gpd
 from libpysal.weights import Queen
 
-from dissmodel.geo.vector.model import SpatialModel
+from dissmodel.geo import SpatialModel
 from dissmodel.visualization import track_plot
 
 from coastal_dynamics.common.constants import (
@@ -47,7 +47,7 @@ from coastal_dynamics.common.constants import (
 )
 
 @track_plot("flooded_cells", "blue")
-class FloodVectorModel(SpatialModel):
+class FloodModel(SpatialModel):
     """
     Hydrological model implemented with DisSModel + GeoDataFrame.
 
