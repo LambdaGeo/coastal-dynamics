@@ -105,8 +105,7 @@ def run_raster(gdf_orig: gpd.GeoDataFrame, n_steps: int = N_STEPS) -> tuple[Rast
     env = Environment(start_time=1, end_time=n_steps)
     RasterFlood(
         backend=b,
-        taxa_elevacao=SEA_LEVEL_RISE_RATE,
-        aim_base=TIDE_HEIGHT,
+        taxa_elevacao=SEA_LEVEL_RISE_RATE
     )
     RasterMangue(
         backend=b,

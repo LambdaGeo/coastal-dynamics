@@ -31,11 +31,9 @@ class FloodModel(RasterModel):
         self,
         backend:       RasterBackend,
         taxa_elevacao: float = 0.011,
-        aim_base:      float = 6.0,
     ) -> None:
         super().setup(backend)
         self.taxa_elevacao = taxa_elevacao
-        self.aim_base      = aim_base
 
         self.flooded_cells     = 0
         self.newly_flooded     = 0

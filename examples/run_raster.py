@@ -209,7 +209,6 @@ def run(
     FloodModel(
         backend       = backend,
         taxa_elevacao = SEA_LEVEL_RISE_RATE,
-        aim_base      = TIDE_HEIGHT,
     )
 
     MangroveModel(

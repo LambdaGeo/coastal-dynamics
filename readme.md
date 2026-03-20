@@ -35,7 +35,8 @@ coastal-dynamics/
 │   └── synthetic_grid_60x60_tiff.zip
 ├── examples/
 │   ├── run_raster.py
-│   └── run_vector.py
+│   ├── run_vector.py
+│   └── validate_coastal.py    vector vs raster equivalence check
 └── pyproject.toml
 ```
 
@@ -135,14 +136,38 @@ Simulates ecosystem response to rising sea levels:
 
 ---
 
+## Validation
+
+The raster and vector substrates are validated for equivalence using
+`examples/validate_coastal.py`. Results on the Maranhão coast dataset
+(50,496 cells, 5 steps):
+
+| Band | Match % | MAE | Notes |
+|------|---------|-----|-------|
+| `uso` (land use) | **100.00%** | 0.000000 | exact |
+| `solo` (soil) | **100.00%** | 0.000000 | exact |
+| `alt` (elevation) | **100.00%** | 0.000037 | floating-point accumulation only |
+
+Run the validation yourself:
+
+```bash
+python examples/validate_coastal.py data/elevacao_pol.zip \
+    --resolution 30 --crs EPSG:5880 --steps 5
+```
+
+---
+
 ## Performance
 
-Both substrates produce equivalent results. Performance differs significantly:
+Both substrates produce equivalent results. Performance on ~50k cells:
 
-| Substrate | ~50k cells | Notes |
-|-----------|-----------|-------|
-| Raster | ~8 ms/step | NumPy vectorized |
-| Vector | ~2 min/step | GeoDataFrame per-cell |
+| Substrate | ms/step | Speedup |
+|-----------|---------|---------|
+| Raster | ~51 ms | 19× |
+| Vector | ~990 ms | 1× |
+
+Speedup grows with grid size — for the full BR-MANGUE grid (94k cells, 88 steps)
+the raster substrate is the practical choice.
 
 ---
 
