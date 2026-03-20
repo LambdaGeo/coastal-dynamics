@@ -45,7 +45,7 @@ from coastal_dynamics.common.constants import (
     MAR, TIFF_BANDS, CRS
 )
 
-from dissmodel.geo.raster.io import load_geotiff, save_geotiff
+from dissmodel.geo.raster.io import load_geotiff, save_geotiff, shapefile_to_raster_backend
 
 # ── provisional import — move to dissmodel.geo.raster.io when stable ──────────
 from coastal_dynamics.common.raster_io import shapefile_to_raster_backend
@@ -224,7 +224,7 @@ def run(
     for band in bands:
         if band not in BAND_CONFIG:
             print(f"  warning: band '{band}' has no visual config — using viridis")
-        RasterMap(backend=backend, band=band, **BAND_CONFIG.get(band, {}))
+        RasterMap(backend=backend, band=band, save_frames=True, **BAND_CONFIG.get(band, {}))
 
     # ── run ───────────────────────────────────────────────────────────────────
     print(f"Running steps {start} → {END_TIME}...")
