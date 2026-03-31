@@ -6,8 +6,8 @@ Steps: 5 | Tolerance: 0.05
 
 | Substrate | ms/step | Speedup |
 |---|---|---|
-| Vector | 897.8 | 1× |
-| Raster | 61.6 | 14.6× |
+| Vector | 701.4 | 1× |
+| Raster | 40.4 | 17.4× |
 
 ## Accuracy
 

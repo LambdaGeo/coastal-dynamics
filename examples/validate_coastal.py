@@ -12,6 +12,7 @@ Output:
     coastal_validation_report.md
     coastal_validation_scatter.png
 """
+
 from __future__ import annotations
 
 import argparse
@@ -27,12 +28,12 @@ import matplotlib.pyplot as plt
 
 from dissmodel.core import Environment
 from dissmodel.geo.raster.backend import RasterBackend
-from dissmodel.geo.raster.io import shapefile_to_raster_backend
+
 
 from coastal_dynamics.raster.flood_model    import FloodModel as RasterFlood
 from coastal_dynamics.raster.mangrove_model import MangroveModel as RasterMangue
 from coastal_dynamics.vector.flood_model    import FloodModel as VectorFlood
-from coastal_dynamics.vector.mangrove_model   import MangroveModel as VectorMangue
+from coastal_dynamics.vector.mangrove_model import MangroveModel as VectorMangue
 from coastal_dynamics.common.constants      import TIFF_BANDS, CRS
 
 # ── configuration ─────────────────────────────────────────────────────────────
