@@ -1,255 +1,248 @@
-"""
-validate_coastal.py
-====================
-Validates equivalence between vector and raster substrates
-for the coastal dynamics models (flood + mangrove) using Executors.
-
-Usage:
-    python validate_coastal.py data/synthetic_grid_60x60_shp.zip
-    python validate_coastal.py data/elevacao_pol.zip --resolution 30 --crs EPSG:31983
-
-Output:
-    coastal_validation_report.md
-    coastal_validation_scatter.png
-"""
-
+# coastal_dynamics/executor/coastal_validation_executor.py
 from __future__ import annotations
 
-import argparse
-import pathlib
+import io
 import time
-
 import numpy as np
 import pandas as pd
 import geopandas as gpd
 import matplotlib
-matplotlib.use("Agg")
+matplotlib.use("Agg")  # Garante que o plot funcione "headless" no Docker
 import matplotlib.pyplot as plt
 
-from dissmodel.executor import ExperimentRecord
-from dissmodel.executor.schemas  import DataSource # Ajuste o import conforme seu projeto
+from dissmodel.core         import Environment
+from dissmodel.executor     import ExperimentRecord, ModelExecutor
+from dissmodel.executor.cli import run_cli
+from dissmodel.io           import load_dataset
+from dissmodel.geo.raster.backend import RasterBackend
 
-# Importando os novos executors
-from coastal_dynamics.executor.coastal_raster_executor import CoastalRasterExecutor
-from coastal_dynamics.executor.coastal_vector_executor import CoastalVectorExecutor
+from coastal_dynamics.vector.flood_model    import FloodModel as VectorFlood
+from coastal_dynamics.vector.mangrove_model import MangroveModel as VectorMangue
+from coastal_dynamics.raster.flood_model    import FloodModel as RasterFlood
+from coastal_dynamics.raster.mangrove_model import MangroveModel as RasterMangue
 
-# ── configuration ─────────────────────────────────────────────────────────────
+CANONICAL_COLS = {"uso", "alt", "solo"}
 
-SEA_LEVEL_RISE_RATE = 0.011
-TIDE_HEIGHT         = 6.0
-N_STEPS             = 10       
-TOLERANCE           = 0.05     
+class CoastalValidationExecutor(ModelExecutor):
+    """
+    Meta-executor that runs BOTH Vector and Raster (Mock 1:1) models to 
+    validate mathematical equivalence across substrates.
+    
+    Generates a Markdown report and a Scatter Plot PNG as output.
+    """
+
+    name = "coastal_validation"
+
+    def load(self, record: ExperimentRecord) -> gpd.GeoDataFrame:
+        """Carrega a base vetorial que servirá de input para ambos os modelos."""
+        gdf, checksum = load_dataset(record.source.uri, fmt="vector")
+        record.source.checksum = checksum
+
+        if record.column_map:
+            gdf = gdf.rename(columns={v: k for k, v in record.column_map.items()})
+
+        missing = CANONICAL_COLS - set(gdf.columns)
+        if missing:
+            raise ValueError(f"Required columns missing: {missing}")
+            
+        return gdf
+
+    def validate(self, record: ExperimentRecord) -> None:
+        if not record.source.uri:
+            raise ValueError("source.uri is empty.")
+
+        # Validate required columns including row/col for mock raster alignment
+        gdf, _ = load_dataset(record.source.uri, fmt="vector")
+        if record.column_map:
+            gdf = gdf.rename(columns={v: k for k, v in record.column_map.items()})
+
+        missing_canonical = CANONICAL_COLS - set(gdf.columns)
+        if missing_canonical:
+            raise ValueError(f"Required columns missing: {missing_canonical}")
+
+        missing_index = {"row", "col"} - set(gdf.columns)
+        if missing_index:
+            raise ValueError(
+                f"Columns 'row' and 'col' are required for mock raster alignment "
+                f"but are missing from the dataset.\n"
+                f"These columns must contain integer grid indices."
+            )
+
+    def run(self, record: ExperimentRecord) -> dict:
+        params        = record.parameters
+        n_steps       = params.get("end_time",      10)
+        taxa_elevacao = params.get("taxa_elevacao", 0.011)
+        altura_mare   = params.get("altura_mare",   6.0)
+        tolerance     = params.get("tolerance",     0.05)
+
+        # 1. Carrega o dado base
+        gdf_orig = self.load(record)
+        record.add_log(f"Base data loaded: {len(gdf_orig):,} cells")
+
+        # 2. Roda o Modelo Vetorial
+        record.add_log(f"Running Vector Model ({n_steps} steps)...")
+        gdf_result = gdf_orig.copy()
+        env_vec = Environment(start_time=1, end_time=n_steps)
+        VectorFlood(gdf=gdf_result, taxa_elevacao=taxa_elevacao, attr_uso="uso", attr_alt="alt")
+        VectorMangue(gdf=gdf_result, taxa_elevacao=taxa_elevacao, altura_mare=altura_mare, attr_uso="uso", attr_alt="alt", attr_solo="solo")
+        
+        t0 = time.perf_counter()
+        env_vec.run()
+        vec_ms = (time.perf_counter() - t0) * 1000 / n_steps
+
+        # 3. Prepara o Raster (Alinhamento 1:1 Matemático) e Roda
+        record.add_log(f"Running Raster Model ({n_steps} steps)...")
+        backend, rows, cols = _build_mock_raster(gdf_orig)
+        env_ras = Environment(start_time=1, end_time=n_steps)
+        RasterFlood(backend=backend, taxa_elevacao=taxa_elevacao)
+        RasterMangue(backend=backend, taxa_elevacao=taxa_elevacao, altura_mare=altura_mare)
+        
+        t0 = time.perf_counter()
+        env_ras.run()
+        ras_ms = (time.perf_counter() - t0) * 1000 / n_steps
+
+        # 4. Comparações e Métricas
+        record.add_log("Calculating metrics...")
+        band_metrics = {}
+        for band in ["uso", "alt", "solo"]:
+            vec_vals = gdf_result[band].values.astype(float)
+            ras_vals = backend.get(band)[rows, cols].astype(float)
+            
+            diff = np.abs(vec_vals - ras_vals)
+            band_metrics[band] = {
+                "match_pct": float((diff <= tolerance).mean() * 100),
+                "mae":       float(diff.mean()),
+                "rmse":      float(np.sqrt((diff**2).mean())),
+                "max_err":   float(diff.max()),
+                "n_cells":   len(vec_vals),
+            }
+
+        # 5. Gera Gráficos em Memória
+        record.add_log("Generating artifacts...")
+        fig, axes = plt.subplots(1, len(band_metrics), figsize=(6 * len(band_metrics), 5))
+        if len(band_metrics) == 1: axes = [axes]
+        
+        for ax, (band, m) in zip(axes, band_metrics.items()):
+            v_vals = gdf_result[band].values.astype(float)
+            r_vals = backend.get(band)[rows, cols].astype(float)
+            ax.scatter(v_vals, r_vals, alpha=0.4, s=6, color="steelblue")
+            lim = max(float(np.max(v_vals)), float(np.max(r_vals))) * 1.05
+            ax.plot([0, lim], [0, lim], "r--", lw=1)
+            ax.set_title(f"{band} (Vector vs Raster)")
+            ax.text(0.05, 0.88, f"Match: {m['match_pct']:.1f}%\nMAE: {m['mae']:.5f}",
+                    transform=ax.transAxes, fontsize=8, bbox=dict(facecolor="wheat", alpha=0.5))
+            
+        plt.tight_layout()
+        plot_buffer = io.BytesIO()
+        plt.savefig(plot_buffer, format="png", dpi=150)
+        plt.close()
+
+        # 6. Gera Relatório Markdown
+        report_md = _build_markdown(n_steps, tolerance, vec_ms, ras_ms, band_metrics)
+
+        # Retorna um dicionário com os artefatos
+        return {
+            "plot_bytes": plot_buffer.getvalue(),
+            "report_str": report_md,
+            "metrics":    band_metrics
+        }
+    
+    def save(self, result: dict, record: ExperimentRecord) -> ExperimentRecord:
+        """Salva os múltiplos artefatos (PNG e MD) gerados pela validação apenas localmente."""
+        import hashlib
+        from pathlib import Path
+
+        # Define um diretório local padrão se o usuário não enviou um via CLI/API
+        base_uri = record.output_path or f"./outputs/validation_{record.experiment_id}"
+        
+        out_dir = Path(base_uri)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Grava os bytes da imagem e a string do relatório no disco
+        (out_dir / "scatter.png").write_bytes(result["plot_bytes"])
+        (out_dir / "report.md").write_text(result["report_str"], encoding="utf-8")
+
+        # Atualiza o registro (record) com os metadados do salvamento
+        record.output_path = str(out_dir)
+        record.status = "completed"
+        record.output_sha256 = hashlib.sha256(result["report_str"].encode()).hexdigest() 
+        
+        record.add_log(f"Saved artifacts locally to {out_dir.absolute()}")
+        
+        return record
+
+    def save__(self, result: dict, record: ExperimentRecord) -> ExperimentRecord:
+        """Salva os múltiplos artefatos (PNG e MD) gerados pela validação."""
+        from dissmodel.io._storage import get_default_client
+        import hashlib
+
+        base_uri = record.output_path or f"s3://dissmodel-outputs/experiments/{record.experiment_id}/validation"
+        
+        if base_uri.startswith("s3://"):
+            client = get_default_client()
+            bucket, path = base_uri[5:].split("/", 1)
+            
+            # Upload PNG
+            client.put_object(
+                bucket_name=bucket, object_name=f"{path}/scatter.png",
+                data=io.BytesIO(result["plot_bytes"]), length=len(result["plot_bytes"]),
+                content_type="image/png"
+            )
+            # Upload MD
+            md_bytes = result["report_str"].encode("utf-8")
+            client.put_object(
+                bucket_name=bucket, object_name=f"{path}/report.md",
+                data=io.BytesIO(md_bytes), length=len(md_bytes),
+                content_type="text/markdown"
+            )
+        else:
+            from pathlib import Path
+            out_dir = Path(base_uri)
+            out_dir.mkdir(parents=True, exist_ok=True)
+            (out_dir / "scatter.png").write_bytes(result["plot_bytes"])
+            (out_dir / "report.md").write_text(result["report_str"], encoding="utf-8")
+
+        record.output_path = base_uri
+        record.status = "completed"
+        # Pode armazenar o JSON resumido das métricas direto no banco para painel rápido
+        record.output_sha256 = hashlib.sha256(result["report_str"].encode()).hexdigest() 
+        return record
+
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
-def metrics(a: np.ndarray, b: np.ndarray, tol: float = TOLERANCE) -> dict:
-    diff = np.abs(a - b)
-    return {
-        "match_pct": float((diff <= tol).mean() * 100),
-        "mae":       float(diff.mean()),
-        "rmse":      float(np.sqrt((diff**2).mean())),
-        "max_err":   float(diff.max()),
-        "n_cells":   len(a),
-    }
+def _build_mock_raster(gdf: gpd.GeoDataFrame) -> tuple[RasterBackend, np.ndarray, np.ndarray]:
+    """Cria a matriz 1:1 ignorando a geografia real para validar a matemática."""
+    rows, cols = gdf["row"].astype(int).values, gdf["col"].astype(int).values
+    n_rows, n_cols = int(rows.max()) + 1, int(cols.max()) + 1
 
-def build_raster_from_gdf(gdf: gpd.GeoDataFrame):
-    """Constrói o RasterBackend garantindo alinhamento 1:1 para validação."""
-    rows   = gdf["row"].astype(int).values
-    cols   = gdf["col"].astype(int).values
-    n_rows = int(rows.max()) + 1
-    n_cols = int(cols.max()) + 1
-
-    from dissmodel.geo.raster.backend import RasterBackend
     b = RasterBackend(shape=(n_rows, n_cols))
-
     mask = np.zeros((n_rows, n_cols), dtype=bool)
     mask[rows, cols] = True
     b.set("mask", mask)
 
-    for col in ["uso", "alt", "solo"]:
+    for col in CANONICAL_COLS:
         if col in gdf.columns:
             arr = np.zeros((n_rows, n_cols), dtype=np.float32)
             arr[rows, cols] = gdf[col].astype(float).values
             b.set(col, arr)
-
     return b, rows, cols
 
-# ── runners (USANDO EXECUTORS) ────────────────────────────────────────────────
-
-def run_vector(uri: str, args) -> tuple[gpd.GeoDataFrame, float]:
-    record = ExperimentRecord(
-        experiment_id = "val_vec",
-        model_name    = "coastal_vector",
-        source        = DataSource(uri=uri, type="local"),
-        parameters    = {
-            "start_time":    1,
-            "end_time":      args.steps,
-            "taxa_elevacao": SEA_LEVEL_RISE_RATE,
-            "altura_mare":   TIDE_HEIGHT,
-        }
-    )
-    
-    executor = CoastalVectorExecutor()
-    
-    t0 = time.perf_counter()
-    gdf_result = executor.run(record)
-    ms = (time.perf_counter() - t0) * 1000 / args.steps
-    
-    return gdf_result, ms
-
-
-class MathValidationRasterExecutor(CoastalRasterExecutor):
-    """
-    Executor Mock para forçar o alinhamento 1:1 na leitura do arquivo
-    apenas para fins de validação matemática contra o modelo vetorial.
-    """
-    def load(self, record):
-        gdf = gpd.read_file(record.source.uri)
-        backend, _, _ = build_raster_from_gdf(gdf)
-        meta = {"crs": record.parameters.get("crs"), "transform": None}
-        return backend, meta, 1
-
-
-def run_raster(uri: str, args) -> tuple[any, float]:
-    record = ExperimentRecord(
-        experiment_id = "val_ras",
-        model_name    = "coastal_raster",
-        source        = DataSource(uri=uri, type="local"),
-        input_format  = "vector", 
-        parameters    = {
-            "end_time":      args.steps,
-            "taxa_elevacao": SEA_LEVEL_RISE_RATE,
-            "altura_mare":   TIDE_HEIGHT,
-            "crs":           args.crs,
-        }
-    )
-    
-    executor = MathValidationRasterExecutor()
-    
-    t0 = time.perf_counter()
-    backend, meta = executor.run(record)
-    ms = (time.perf_counter() - t0) * 1000 / args.steps
-    
-    return backend, ms
-
-
-# ── scatter plot ──────────────────────────────────────────────────────────────
-
-def scatter_plot(ax, x, y, xlabel, ylabel, title, m):
-    ax.scatter(x, y, alpha=0.4, s=6, color="steelblue")
-    lim = max(float(np.max(x)), float(np.max(y))) * 1.05
-    ax.plot([0, lim], [0, lim], "r--", lw=1)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    ax.set_title(title)
-    ax.text(0.05, 0.88,
-            f"match={m['match_pct']:.1f}%\nMAE={m['mae']:.5f}\nRMSE={m['rmse']:.5f}",
-            transform=ax.transAxes, fontsize=7,
-            bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5))
-
-
-# ── report ────────────────────────────────────────────────────────────────────
-
-def write_report(results: dict, path: pathlib.Path,
-                 n_steps: int = N_STEPS, tolerance: float = TOLERANCE) -> None:
+def _build_markdown(n_steps, tol, vec_ms, ras_ms, metrics) -> str:
     lines = [
-        "# Coastal Dynamics — Vector vs Raster Validation\n\n",
-        f"Steps: {n_steps} | Tolerance: {tolerance}\n\n",
-        "## Runtime\n\n",
+        "# Coastal Dynamics Validation Report\n",
+        f"**Steps:** {n_steps} | **Tolerance:** {tol}\n\n",
+        "## Runtime Performance\n",
         f"| Substrate | ms/step | Speedup |\n|---|---|---|\n",
-        f"| Vector | {results['vec_ms']:.1f} | 1× |\n",
-        f"| Raster | {results['ras_ms']:.1f} | {results['vec_ms']/results['ras_ms']:.1f}× |\n\n",
-        "## Accuracy\n\n",
-        "| Band | Match % | MAE | RMSE | Max err | N cells |\n",
-        "|---|---|---|---|---|---|\n",
+        f"| Vector | {vec_ms:.1f} | 1.0x |\n",
+        f"| Raster | {ras_ms:.1f} | {vec_ms/ras_ms:.1f}x |\n\n",
+        "## Accuracy Metrics\n",
+        "| Band | Match % | MAE | RMSE | Max Err | N Cells |\n|---|---|---|---|---|---|\n"
     ]
-    for band, m in results["metrics"].items():
-        lines.append(
-            f"| {band} | {m['match_pct']:.2f}% | {m['mae']:.6f} | "
-            f"{m['rmse']:.6f} | {m['max_err']:.6f} | {m['n_cells']} |\n"
-        )
-    path.write_text("".join(lines))
-    print(f"\nReport: {path}")
-
-
-# ── main ──────────────────────────────────────────────────────────────────────
-
-def main():
-    p = argparse.ArgumentParser()
-    p.add_argument("shp",          help="Input shapefile zip")
-    p.add_argument("--resolution", type=float, default=100.0)
-    p.add_argument("--crs",        type=str,   default="EPSG:31983")
-    p.add_argument("--steps",      type=int,   default=N_STEPS)
-    p.add_argument("--tol",        type=float, default=TOLERANCE)
-    args = p.parse_args()
-
-    print("=" * 60)
-    print("Coastal Dynamics: Vector vs Raster Validation (Executor Mode)")
-    print("=" * 60)
-
-    # Lemos o GDF original apenas para extrair as linhas e colunas para o alinhamento
-    gdf_orig = gpd.read_file(args.shp)
-    print(f"  {len(gdf_orig):,} cells  crs={gdf_orig.crs}")
-
-    print(f"\n[1/2] Vector substrate ({args.steps} steps)...")
-    gdf_result, vec_ms = run_vector(args.shp, args)
-    print(f"  {vec_ms:.1f} ms/step")
-
-    print(f"\n[2/2] Raster substrate ({args.steps} steps)...")
-    backend, ras_ms = run_raster(args.shp, args)
-    print(f"  {ras_ms:.1f} ms/step")
-
-    # ── align by position ─────────────────────────────────────────────────────
-    print("\nComparing...")
-
-    # Extraímos as posições do arquivo original para garantir o alinhamento 1:1 no scatter
-    rows = gdf_orig["row"].astype(int).values
-    cols = gdf_orig["col"].astype(int).values
-
-    band_metrics = {}
-    for band in ["uso", "alt", "solo"]:
-        if band not in gdf_result.columns:
-            continue
-
-        vec_vals = gdf_result[band].values.astype(float)
-        ras_vals = backend.get(band)[rows, cols].astype(float)
-
-        m = metrics(vec_vals, ras_vals, args.tol)
-        band_metrics[band] = m
-        print(f"  {band:6s}  match={m['match_pct']:.2f}%  MAE={m['mae']:.6f}  RMSE={m['rmse']:.6f}")
-
-    # ── scatter plots ─────────────────────────────────────────────────────────
-    n_bands = len(band_metrics)
-    fig, axes = plt.subplots(1, n_bands, figsize=(6 * n_bands, 5))
-    if n_bands == 1:
-        axes = [axes]
-
-    for ax, (band, m) in zip(axes, band_metrics.items()):
-        vec_vals = gdf_result[band].values.astype(float)
-        ras_vals = backend.get(band)[rows, cols].astype(float)
-        scatter_plot(ax, vec_vals, ras_vals,
-                     f"Vector {band}", f"Raster {band}",
-                     f"{band} — Vector vs Raster", m)
-
-    plt.suptitle(f"Coastal Dynamics — step {args.steps}", fontsize=11)
-    plt.tight_layout()
-    plt.savefig("coastal_validation_scatter.png", dpi=150)
-    print("Plot: coastal_validation_scatter.png")
-
-    write_report({
-        "vec_ms": vec_ms,
-        "ras_ms": ras_ms,
-        "metrics": band_metrics,
-    }, pathlib.Path("coastal_validation_report.md"),
-    n_steps=args.steps, tolerance=args.tol)
-
-    print("\n" + "=" * 60)
-    print("SUMMARY")
-    print("=" * 60)
-    print(f"  Runtime  vector={vec_ms:.1f}ms  raster={ras_ms:.1f}ms  speedup={vec_ms/ras_ms:.1f}×")
-    for band, m in band_metrics.items():
-        print(f"  {band:6s}  match={m['match_pct']:.2f}%  MAE={m['mae']:.6f}")
+    for band, m in metrics.items():
+        lines.append(f"| {band} | {m['match_pct']:.2f}% | {m['mae']:.6f} | {m['rmse']:.6f} | {m['max_err']:.6f} | {m['n_cells']} |\n")
+    return "".join(lines)
 
 
 if __name__ == "__main__":
-    main()
+    run_cli(CoastalValidationExecutor)
