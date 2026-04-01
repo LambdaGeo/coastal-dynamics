@@ -1,7 +1,4 @@
-# examples/coastal_raster_executor.py
 from __future__ import annotations
-
-import geopandas as gpd
 
 from dissmodel.executor     import ExperimentRecord, ModelExecutor
 from dissmodel.executor.cli import run_cli
@@ -18,9 +15,9 @@ from coastal_dynamics.raster.mangrove_model import MangroveModel
 # ── visualization config ──────────────────────────────────────────────────────
 
 BAND_CONFIG: dict[str, dict] = {
-    "uso": dict(color_map=USO_COLORS, labels=USO_LABELS, title="Land Use"),
+    "uso":  dict(color_map=USO_COLORS, labels=USO_LABELS, title="Land Use"),
     "solo": dict(color_map=SOLO_COLORS, labels=SOLO_LABELS, title="Soil"),
-    "alt": dict(
+    "alt":  dict(
         cmap           = "terrain",
         colorbar_label = "Elevation (m)",
         mask_band      = "uso",
@@ -35,6 +32,9 @@ SHAPEFILE_DEFAULTS: dict[str, int | float] = {
     "solo": 1,
 }
 
+# Canonical band names this executor always expects after load()
+CANONICAL_BANDS = {"uso", "alt", "solo"}
+
 
 class CoastalRasterExecutor(ModelExecutor):
     """
@@ -44,32 +44,40 @@ class CoastalRasterExecutor(ModelExecutor):
     Couples FloodModel + MangroveModel over a shared RasterBackend.
     Works both as a platform executor (via API) and locally (via CLI).
 
-    Equivalent to run.py but following the ModelExecutor contract.
+    Input contract
+    --------------
+    After load(), the RasterBackend always exposes the canonical band names
+    "uso", "alt", "solo" — regardless of the source file's naming convention.
+    Non-canonical names are resolved via band_map (tiff) or column_map (vector)
+    before any model sees the data.
     """
 
     name = "coastal_raster"
 
+    # ── public contract ───────────────────────────────────────────────────────
+
     def load(self, record: ExperimentRecord):
         """
         Load RasterBackend from GeoTIFF or rasterize a vector file.
-        Returns (backend, meta, start_time).
+
+        Returns (backend, meta, start_time). Band names in the returned backend
+        are always canonical ("uso", "alt", "solo").
         """
-        from dissmodel.io.convert    import vector_to_raster_backend
+        from dissmodel.io.convert import vector_to_raster_backend
 
-        params     = record.parameters
-        uri        = record.source.uri
-        fmt        = record.input_format
+        params = record.parameters
+        uri    = record.source.uri
+        fmt    = record.input_format
 
-        # Auto-detect format from extension if not specified
         if fmt == "auto":
             fmt = _detect_format(uri)
 
         if fmt == "tiff":
-            (backend, meta), checksum = load_dataset(uri, fmt="raster",
-                                                     band_spec=TIFF_BANDS)
+            (backend, meta), checksum = load_dataset(
+                uri, fmt="raster", band_spec=TIFF_BANDS
+            )
             record.source.checksum = checksum
 
-            # Apply band_map if dataset uses non-canonical names
             for canonical, real in record.band_map.items():
                 backend.rename_band(real, canonical)
 
@@ -81,7 +89,6 @@ class CoastalRasterExecutor(ModelExecutor):
             )
 
         else:
-            # Vector input — rasterize into RasterBackend
             gdf, checksum = load_dataset(uri, fmt="vector")
             record.source.checksum = checksum
 
@@ -109,49 +116,69 @@ class CoastalRasterExecutor(ModelExecutor):
         return backend, meta, start
 
     def validate(self, record: ExperimentRecord) -> None:
-        backend, *_ = self.load(record)
-        expected    = {"uso", "alt", "solo"}
-        actual      = set(backend.band_names())
-        missing     = expected - actual
+        """
+        Stateless pre-flight checks on the record itself — no data loading.
 
-        if missing:
-            hint = "band_map" if record.input_format == "tiff" else "column_map"
+        Catches configuration errors early (before the job enters the Dask
+        queue) without paying the cost of loading the dataset twice.
+
+        Band-level checks (missing bands, elevation range) run at the start
+        of run() after a single load(), where the cost is already paid.
+        """
+        uri = record.source.uri
+        if not uri:
+            raise ValueError("source.uri is empty — pass 'input_dataset' in the request.")
+
+        fmt = record.input_format
+        if fmt not in {"tiff", "vector", "auto"}:
             raise ValueError(
-                f"Bands missing after mapping: {missing}\n"
-                f"Pass '{hint}' in the request to map non-canonical names.\n"
-                f"Available bands: {list(actual)}"
+                f"input_format={fmt!r} is not valid. "
+                f"Use 'tiff', 'vector', or 'auto'."
             )
 
-        # Sanity check elevation range
-        if "alt" in actual:
-            alt = backend.get("alt")
-            if alt.min() < -500 or alt.max() > 9000:
+        if fmt == "tiff" and record.band_map:
+            unknown = set(record.band_map) - CANONICAL_BANDS
+            if unknown:
                 raise ValueError(
-                    f"Band 'alt' has implausible values: "
-                    f"[{alt.min():.1f}, {alt.max():.1f}]. "
-                    f"Check band_map — 'alt' should be elevation in meters."
+                    f"band_map references unknown canonical names: {unknown}. "
+                    f"Expected keys: {CANONICAL_BANDS}"
+                )
+
+        if fmt in {"vector", "auto"} and record.column_map:
+            unknown = set(record.column_map) - CANONICAL_BANDS
+            if unknown:
+                raise ValueError(
+                    f"column_map references unknown canonical names: {unknown}. "
+                    f"Expected keys: {CANONICAL_BANDS}"
                 )
 
     def run(self, record: ExperimentRecord):
-        from dissmodel.core           import Environment
+        """
+        Load data once, validate bands, then execute the simulation.
+        """
+        from dissmodel.core import Environment
         from dissmodel.visualization.raster_map import RasterMap
 
         params        = record.parameters
         end_time      = params.get("end_time",      88)
-        taxa_elevacao = params.get("taxa_elevacao", 0.5)
-        altura_mare   = params.get("altura_mare",   6.0)
-        acrecao_ativa = params.get("acrecao_ativa", False)
-        bands         = params.get("bands",         ["uso"])
+        taxa_elevacao = params.get("taxa_elevacao",  0.5)
+        altura_mare   = params.get("altura_mare",    6.0)
+        acrecao_ativa = params.get("acrecao_ativa",  False)
+        bands         = params.get("bands",          ["uso"])
 
+        # ── single load ───────────────────────────────────────────────────────
         backend, meta, start = self.load(record)
 
+        # ── band-level validation (only possible after load) ──────────────────
+        _check_bands(backend, record)
+
+        # ── build models ──────────────────────────────────────────────────────
         env = Environment(start_time=start, end_time=end_time)
 
         FloodModel(
             backend       = backend,
             taxa_elevacao = taxa_elevacao,
         )
-
         MangroveModel(
             backend       = backend,
             taxa_elevacao = taxa_elevacao,
@@ -159,11 +186,12 @@ class CoastalRasterExecutor(ModelExecutor):
             acrecao_ativa = acrecao_ativa,
         )
 
-        # Visualization only in interactive mode — skipped in headless worker
         if params.get("interactive", False):
             for band in bands:
                 if band not in BAND_CONFIG:
-                    print(f"  warning: band '{band}' has no visual config — using viridis")
+                    record.add_log(
+                        f"Warning: band '{band}' has no visual config — using viridis"
+                    )
                 RasterMap(
                     backend     = backend,
                     band        = band,
@@ -182,8 +210,10 @@ class CoastalRasterExecutor(ModelExecutor):
 
         backend, meta = result
 
-        uri      = record.output_path or \
-                   f"s3://dissmodel-outputs/experiments/{record.experiment_id}/output.tif"
+        uri = (
+            record.output_path
+            or f"s3://dissmodel-outputs/experiments/{record.experiment_id}/output.tif"
+        )
         checksum = save_geotiff(
             (backend, meta), uri,
             band_spec = TIFF_BANDS,
@@ -200,9 +230,34 @@ class CoastalRasterExecutor(ModelExecutor):
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
+def _check_bands(backend, record: ExperimentRecord) -> None:
+    """
+    Verify canonical bands are present and elevation values are plausible.
+    Runs inside run() after a single load() — not in validate().
+    """
+    actual  = set(backend.band_names())
+    missing = CANONICAL_BANDS - actual
+
+    if missing:
+        hint = "band_map" if record.input_format == "tiff" else "column_map"
+        raise ValueError(
+            f"Bands missing after mapping: {missing}\n"
+            f"Pass '{hint}' in the request to map non-canonical names.\n"
+            f"Available bands: {sorted(actual)}"
+        )
+
+    alt = backend.get("alt")
+    if alt.min() < -500 or alt.max() > 9000:
+        raise ValueError(
+            f"Band 'alt' has implausible values: [{alt.min():.1f}, {alt.max():.1f}]. "
+            f"Expected elevation in metres. Check band_map."
+        )
+
+
 def _detect_format(uri: str) -> str:
     """Infer input format from URI extension."""
-    import zipfile, pathlib
+    import pathlib
+    import zipfile
 
     ext = pathlib.Path(uri.split("?")[0]).suffix.lower()
 
@@ -210,7 +265,6 @@ def _detect_format(uri: str) -> str:
         return "tiff"
 
     if ext == ".zip":
-        # Inspect zip contents to decide
         try:
             with zipfile.ZipFile(uri) as zf:
                 names = zf.namelist()

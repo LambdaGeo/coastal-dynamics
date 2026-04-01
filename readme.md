@@ -190,3 +190,7 @@ MIT — [LambdaGEO Research Group](https://lambdageo.github.io), UFMA
 **Sergio Souza Costa, PhD**  
 Associate Professor — Federal University of Maranhão (UFMA)  
 [github.com/profsergiocosta](https://github.com/profsergiocosta) · [lambdageo.github.io](https://lambdageo.github.io)
+
+
+
+(.venv) sergio@sergio-OptiPlex-7050:~/dev/github/lambdageo/coastal-dynamics/examples$ python main_raster.py run --input data/input/synthetic_grid_60x60_tiff.zip --output data/output/saida.tiff --param interactive=true
