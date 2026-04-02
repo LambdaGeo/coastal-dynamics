@@ -15,7 +15,7 @@ from dissmodel.executor.cli       import run_cli
 from dissmodel.geo.raster.backend import RasterBackend
 from dissmodel.io                 import load_dataset
 from dissmodel.io._utils          import write_bytes, write_text
-#from dissmodel.config             import settings
+from dissmodel.executor.config             import settings
 
 from coastal_dynamics.raster.flood_model    import FloodModel as RasterFlood
 from coastal_dynamics.raster.mangrove_model import MangroveModel as RasterMangue
@@ -210,7 +210,7 @@ class CoastalValidationExecutor(ModelExecutor):
         """
         base_uri = (
             record.output_path
-            or f"experiments/{record.experiment_id}/validation"
+            or f"{settings.default_output_base}/experiments/{record.experiment_id}/validation"
         )
 
         record.add_artifact(
