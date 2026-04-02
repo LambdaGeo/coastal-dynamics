@@ -210,7 +210,7 @@ class CoastalValidationExecutor(ModelExecutor):
         """
         base_uri = (
             record.output_path
-            or f"/experiments/{record.experiment_id}/validation"
+            or f"experiments/{record.experiment_id}/validation"
         )
 
         record.add_artifact(
