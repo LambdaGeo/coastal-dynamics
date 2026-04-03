@@ -1,5 +1,6 @@
 raster_map_frames
 testes
+examples/data/output
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
