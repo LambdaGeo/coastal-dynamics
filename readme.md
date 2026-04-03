@@ -19,26 +19,47 @@ The same processes are implemented on **two spatial substrates** to illustrate D
 ## Repository Structure
 
 ```
-coastal-dynamics/
-├── coastal_dynamics/
-│   ├── common/
-│   │   └── constants.py       land-use codes, colours, band specs
-│   ├── raster/
-│   │   ├── flood_model.py     FloodModel (NumPy vectorized)
-│   │   └── mangrove_model.py  MangroveModel (NumPy vectorized)
-│   └── vector/
-│       ├── flood_model.py     FloodModel (GeoDataFrame)
-│       └── mangue_model.py    MangroveModel (GeoDataFrame)
-├── data/
-│   ├── elevacao_pol/          real Maranhão coast dataset
+coastal-dynamics
+│
+├── coastal_dynamics
+│   ├── common
+│   │   └── constants.py
+│   │
+│   ├── raster
+│   │   ├── flood_model.py
+│   │   └── mangrove_model.py
+│   │
+│   └── vector
+│       ├── flood_model.py
+│       └── mangrove_model.py
+│
+├── data
 │   ├── synthetic_grid_60x60_shp.zip
 │   └── synthetic_grid_60x60_tiff.zip
 ├── examples/
 │   ├── run_raster.py
-│   ├── run_vector.py
-│   └── validate_coastal.py    vector vs raster equivalence check
+│   └── run_vector.py
+│
+├── requirements.txt
 └── pyproject.toml
 ```
+
+### Main Components
+
+**Models**
+
+- `flood_model.py` → Simulates flooding due to sea-level rise
+- `mangrove_model.py` → Simulates mangrove migration and soil dynamics
+
+**Spatial representations**
+
+- `raster/` → grid-based spatial modeling using GeoTIFF
+- `vector/` → polygon-based spatial modeling using Shapefiles
+
+**Examples**
+
+- `run_raster.py` → executes the raster simulation
+- `run_vector.py` → executes the vector simulation
 
 ---
 
@@ -51,21 +72,32 @@ git clone https://github.com/lambdageo/coastal-dynamics.git
 cd coastal-dynamics
 ```
 
-### 2. Create and activate a virtual environment
+## 2. Create a Python virtual environment
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate      # Linux / macOS
-# .venv\Scripts\activate       # Windows
 ```
 
-### 3. Install in editable mode
+Activate it:
+
+**Linux / macOS**
+```bash
+source .venv/bin/activate
+```
+
+**Windows**
+```bash
+.venv\Scripts\activate
+```
+
+## 3. Install dependencies
 
 ```bash
 pip install -e .
 ```
 
-This installs `coastal_dynamics` as a package — no `PYTHONPATH` tricks needed.
+This installs the project and all dependencies, including
+[DisSModel 0.2.0](https://pypi.org/project/dissmodel/).
 
 ---
 
@@ -76,18 +108,46 @@ This installs `coastal_dynamics` as a package — no `PYTHONPATH` tricks needed.
 ```bash
 python examples/run_raster.py data/synthetic_grid_60x60_tiff.zip
 ```
-
-### Raster — from Shapefile (rasterized on the fly)
-
-```bash
-python examples/run_raster.py data/elevacao_pol.zip \
-    --resolution 30 \
-    --crs EPSG:5880 \
-    --bands uso alt solo \
-    --format vector
+data/
+   synthetic_grid_60x60_tiff.zip
+   synthetic_grid_60x60_shp.zip
 ```
 
-### Vector
+### Raster dataset
+
+Contains **GeoTIFF layers** representing:
+
+- `uso` → land use
+- `alt` → elevation
+- `solo` → soil type
+
+### Vector dataset
+
+Contains a **Shapefile grid** with the same attributes stored as polygon fields.
+
+Both represent a **60×60 synthetic coastal grid** used for simulation experiments.
+
+---
+
+# Running the Simulations
+
+## Raster simulation
+
+Raster simulations operate on **GeoTIFF grids**.
+
+```bash
+python examples/run_raster.py data/synthetic_grid_60x60_tiff.zip
+```
+
+The script performs:
+
+1. Loading the raster dataset into a `RasterBackend`
+2. Running `FloodRasterModel` and `MangroveModel` step by step
+3. Updating raster arrays at each simulation step
+
+## Vector simulation
+
+Vector simulations operate on **polygon cells stored in a Shapefile**.
 
 ```bash
 python examples/run_vector.py data/synthetic_grid_60x60_shp.zip
@@ -95,26 +155,24 @@ python examples/run_vector.py data/synthetic_grid_60x60_shp.zip
 
 ### Common options
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--bands` | Bands to visualize: `uso solo alt` | `uso` |
-| `--resolution` | Cell size in CRS units (shapefile input only) | `100` |
-| `--crs` | Target CRS, e.g. `EPSG:5880` | native |
-| `--format` | Force `tiff` or `vector` (auto-detected from extension) | auto |
-| `--acrecao` | Enable sediment accretion (Alongi 2008) | off |
-| `--no-save` | Skip saving the output GeoTIFF | — |
+1. Loading the Shapefile dataset into a GeoDataFrame
+2. Constructing the spatial topology (Queen neighborhood)
+3. Running `FloodVectorModel` and `MangroveModel` step by step
+4. Updating polygon attributes during the simulation
 
 ---
 
 ## Example Datasets
 
-| File | Type | Description |
-|------|------|-------------|
-| `synthetic_grid_60x60_tiff.zip` | GeoTIFF | 60×60 synthetic coastal grid |
-| `synthetic_grid_60x60_shp.zip` | Shapefile | Same grid as polygons |
-| `elevacao_pol.zip` | Shapefile | Real Maranhão coast (~50k cells, 30m resolution) |
+## Flood Dynamics
 
----
+The flooding model simulates **sea-level rise propagation** across the landscape.
+
+Main processes:
+
+- Sea level increases over time at a configurable rate (default: 0.011 m/year — IPCC RCP8.5)
+- Flooded cells propagate water to neighboring cells
+- Terrain elevation dynamically adjusts due to water flux
 
 ## Model Processes
 
@@ -122,17 +180,35 @@ python examples/run_vector.py data/synthetic_grid_60x60_shp.zip
 
 Simulates sea-level rise propagation across the landscape. At each step:
 
-- Sea level increases by `taxa_elevacao` m/year (default: 0.011 m — IPCC RCP8.5)
-- Flooded cells propagate water to lower-elevation neighbours
-- Terrain elevation adjusts due to water flux
+- Inland mangrove migration
+- Soil type transitions
+- Tidal influence threshold
+- Optional sediment accretion based on Alongi (2008)
 
 ### Mangrove Migration
 
 Simulates ecosystem response to rising sea levels:
 
-- Mangrove cells migrate inland following soil type transitions
-- Tidal influence threshold (`altura_mare`) controls migration range
-- Optional sediment accretion process based on Alongi (2008)
+During execution the models track:
+
+- `celulas_inundadas` — total flooded cells
+- `novas_inundadas` — newly flooded cells per step
+- `nivel_mar_atual` — current sea level (m)
+- `mangue_migrado` — total migrated mangrove cells
+- `solo_migrado` — total migrated soil cells
+
+---
+
+# DisSModel version
+
+This project requires **DisSModel 0.2.0**, which introduced:
+
+- `RasterBackend` and `RasterModel` — NumPy-based execution engine
+- `RasterCellularAutomaton` — vectorized CA base class
+- `SpatialModel` — base class for vector push/source models
+- `RasterMap` — raster visualization with categorical and continuous modes
+
+See the [DisSModel changelog](https://github.com/lambdageo/dissmodel/releases) for details.
 
 ---
 
@@ -148,7 +224,10 @@ The raster and vector substrates are validated for equivalence using
 | `solo` (soil) | **100.00%** | 0.000000 | exact |
 | `alt` (elevation) | **100.00%** | 0.000037 | floating-point accumulation only |
 
-Run the validation yourself:
+- diffusion processes
+- ecological transitions
+- computational performance
+- scalability of spatial models
 
 ```bash
 python examples/validate_coastal.py data/elevacao_pol.zip \
@@ -159,15 +238,28 @@ python examples/validate_coastal.py data/elevacao_pol.zip \
 
 ## Performance
 
-Both substrates produce equivalent results. Performance on ~50k cells:
+- Python 3.11+
+- dissmodel >= 0.2.0
+- numpy
+- geopandas
+- rasterio
+- shapely
 
-| Substrate | ms/step | Speedup |
-|-----------|---------|---------|
-| Raster | ~51 ms | 19× |
-| Vector | ~990 ms | 1× |
+See `requirements.txt` for the pinned versions.
 
-Speedup grows with grid size — for the full BR-MANGUE grid (94k cells, 88 steps)
-the raster substrate is the practical choice.
+---
+
+# Citation
+
+If you use this project in your research, please cite:
+
+```
+Bezerra, R. (2014). Modelagem da migração de manguezais sob efeito da
+elevação do nível do mar. INPE.
+
+Costa, S. S. et al. DisSModel — A Python framework for spatial discrete
+simulation models. LambdaGEO, UFMA.
+```
 
 ---
 
@@ -181,16 +273,5 @@ See `pyproject.toml` for the full dependency list.
 
 ---
 
-## License
-
-MIT — [LambdaGEO Research Group](https://lambdageo.github.io), UFMA
-
-## Authors
-
-**Sergio Souza Costa, PhD**  
-Associate Professor — Federal University of Maranhão (UFMA)  
-[github.com/profsergiocosta](https://github.com/profsergiocosta) · [lambdageo.github.io](https://lambdageo.github.io)
-
-
-
-(.venv) sergio@sergio-OptiPlex-7050:~/dev/github/lambdageo/coastal-dynamics/examples$ python main_raster.py run --input data/input/synthetic_grid_60x60_tiff.zip --output data/output/saida.tiff --param interactive=true
+GitHub: [https://github.com/profsergiocosta](https://github.com/profsergiocosta)
+Research Group: [https://lambdageo.github.io](https://lambdageo.github.io)
