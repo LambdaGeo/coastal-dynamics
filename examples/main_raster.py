@@ -1,4 +1,8 @@
 from coastal_dynamics.executor.coastal_raster_executor import CoastalRasterExecutor
+
+import matplotlib
+matplotlib.use('tkagg')
+
 from dissmodel.executor.cli import run_cli
 
 if __name__ == "__main__":
