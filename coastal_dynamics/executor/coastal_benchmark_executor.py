@@ -25,7 +25,7 @@ from coastal_dynamics.vector.mangrove_model import MangroveModel as VectorMangue
 CANONICAL_COLS = {"uso", "alt", "solo"}
 
 
-class CoastalValidationExecutor(ModelExecutor):
+class CoastalBenchmarkExecutor(ModelExecutor):
     """
     Meta-executor that runs both Vector and Raster models against the same
     input to validate mathematical equivalence across substrates.
@@ -316,4 +316,4 @@ def _build_markdown(
 
 
 if __name__ == "__main__":
-    run_cli(CoastalValidationExecutor)
+    run_cli(CoastalBenchmarkExecutor)
