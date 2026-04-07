@@ -2,14 +2,14 @@
 
 from .coastal_raster_executor import CoastalRasterExecutor
 from .coastal_vector_executor import CoastalVectorExecutor
-from .coastal_validation_executor import CoastalValidationExecutor
+from .coastal_benchmark_executor import CoastalBenchmarkExecutor
 
 # A variável mágica __all__ define exatamente o que é exportado
 # quando alguém faz `from coastal_dynamics.executor import *`
 __all__ = [
     "CoastalRasterExecutor",
     "CoastalVectorExecutor",
-    "CoastalValidationExecutor",
+    "CoastalBenchmarkExecutor",
     "EXECUTOR_REGISTRY", # Exportando o registro também
 ]
 
@@ -18,5 +18,5 @@ __all__ = [
 EXECUTOR_REGISTRY = {
     CoastalRasterExecutor.name: CoastalRasterExecutor,
     CoastalVectorExecutor.name: CoastalVectorExecutor,
-    CoastalValidationExecutor.name: CoastalValidationExecutor,
+    CoastalBenchmarkExecutor.name: CoastalBenchmarkExecutor,
 }
