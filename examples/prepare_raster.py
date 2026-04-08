@@ -39,7 +39,7 @@ def prepare(shp: str, resolution: float, crs: str, output: str) -> None:
     for col, default_val in SHAPEFILE_DEFAULTS.items():
         if col in gdf.columns:
             gdf[col] = gdf[col].fillna(default_val)
-            
+
     print(f"  {len(gdf):,} features  crs={gdf.crs}")
 
     print(f"Rasterizing at {resolution}m resolution...")
@@ -50,7 +50,7 @@ def prepare(shp: str, resolution: float, crs: str, output: str) -> None:
         crs         = crs,
         all_touched = False,
         nodata      = 0,
-    )
+        nodata_value = 0,  
     valid = int(backend.get("mask").sum()) if "mask" in backend.arrays else "?"
     print(f"  shape={backend.shape}  valid cells={valid:,}")
 
