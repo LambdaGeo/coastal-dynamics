@@ -88,10 +88,11 @@ class CoastalVectorExecutor(ModelExecutor):
                     f"Expected keys: {CANONICAL_COLS}"
                 )
 
-    def run(self, record: ExperimentRecord) -> gpd.GeoDataFrame:
+    def run(self, data: gpd.GeoDataFrame, record: ExperimentRecord) -> gpd.GeoDataFrame:
         """
-        Load data once, validate columns, then execute the simulation.
+        Validate columns, then execute the simulation.
 
+        `data` is the GeoDataFrame returned by load(), injected by the platform.
         Models receive the canonical column names directly — no runtime
         attr_* params needed, because load() has already normalised the GDF.
         """
@@ -103,10 +104,10 @@ class CoastalVectorExecutor(ModelExecutor):
         altura_mare   = params.get("altura_mare",    6.0)
         acrecao_ativa = params.get("acrecao_ativa",  False)
 
-        # ── single load ───────────────────────────────────────────────────────
-        gdf = self.load(record)
+        # data injected by execute_lifecycle — no I/O here
+        gdf = data
 
-        # ── column-level validation (only possible after load) ────────────────
+        # column-level validation (only possible after load)
         _check_columns(gdf, record)
 
         # ── build models ──────────────────────────────────────────────────────

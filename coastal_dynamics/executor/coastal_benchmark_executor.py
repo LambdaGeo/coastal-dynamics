@@ -15,7 +15,7 @@ from dissmodel.executor.cli       import run_cli
 from dissmodel.geo.raster.backend import RasterBackend
 from dissmodel.io                 import load_dataset
 from dissmodel.io._utils          import write_bytes, write_text
-from dissmodel.executor.config             import settings
+from dissmodel.executor.config    import settings
 
 from coastal_dynamics.raster.flood_model    import FloodModel as RasterFlood
 from coastal_dynamics.raster.mangrove_model import MangroveModel as RasterMangue
@@ -83,17 +83,23 @@ class CoastalBenchmarkExecutor(ModelExecutor):
                     f"Expected keys: {CANONICAL_COLS}"
                 )
 
-    def run(self, record: ExperimentRecord) -> dict:
+    def run(self, data: gpd.GeoDataFrame, record: ExperimentRecord) -> dict:
+        """
+        Validate columns, then execute both Vector and Raster models.
+
+        `data` is the GeoDataFrame returned by load(), injected by the platform.
+        No I/O happens here.
+        """
         params        = record.parameters
         n_steps       = params.get("end_time",      10)
         taxa_elevacao = params.get("taxa_elevacao",  0.011)
         altura_mare   = params.get("altura_mare",    6.0)
         tolerance     = params.get("tolerance",      0.05)
 
-        # ── single load ───────────────────────────────────────────────────────
-        gdf_orig = self.load(record)
+        # data injected by execute_lifecycle — no I/O here
+        gdf_orig = data
 
-        # ── column-level validation (only possible after load) ────────────────
+        # column-level validation (only possible after load)
         _check_columns(gdf_orig, record)
 
         # ── vector run ────────────────────────────────────────────────────────
