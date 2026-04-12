@@ -152,9 +152,12 @@ class CoastalRasterExecutor(ModelExecutor):
                     f"Expected keys: {CANONICAL_BANDS}"
                 )
 
-    def run(self, record: ExperimentRecord):
+    def run(self, data, record: ExperimentRecord):
         """
-        Load data once, validate bands, then execute the simulation.
+        Validate bands, then execute the simulation.
+
+        `data` is the (backend, meta, start) tuple returned by load(),
+        injected by the platform. No I/O happens here.
         """
         from dissmodel.core import Environment
         from dissmodel.visualization.raster_map import RasterMap
@@ -166,10 +169,10 @@ class CoastalRasterExecutor(ModelExecutor):
         acrecao_ativa = params.get("acrecao_ativa",  False)
         bands         = params.get("bands",          ["uso"])
 
-        # ── single load ───────────────────────────────────────────────────────
-        backend, meta, start = self.load(record)
+        # data injected by execute_lifecycle — no I/O here
+        backend, meta, start = data
 
-        # ── band-level validation (only possible after load) ──────────────────
+        # band-level validation (only possible after load)
         _check_bands(backend, record)
 
         # ── build models ──────────────────────────────────────────────────────
